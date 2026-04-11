@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IPL Contest Scoring</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.9);
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .dashboard .card:nth-child(5) {
+            grid-column: 1 / -1;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            padding: 20px;
+            color: white;
+            font-size: 1.5em;
+            font-weight: bold;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .card-header.playoffs {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .card-header.runs {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .card-header.sixes {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .card-header.wickets {
+            background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+        }
+
+        .card-header.scores {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
+        .card-body {
+            padding: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95em;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            padding: 8px 6px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            white-space: nowrap;
+            font-size: 0.9em;
+        }
+
+        td {
+            padding: 6px 6px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .rank {
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+        }
+
+        .player-name {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #28a745;
+            text-align: center;
+        }
+
+        .points-badge {
+            background: #28a745;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 0.9em;
+            font-weight: bold;
+            text-align: center;
+            display: inline-block;
+            min-width: 50px;
+        }
+
+        .top-3-value {
+            background: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+            color: #856404;
+            display: block;
+            margin-bottom: 2px;
+            font-size: 0.9em;
+        }
+
+        .pick-value {
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+            color: #495057;
+            display: block;
+            margin-bottom: 2px;
+            font-size: 0.9em;
+        }
+
+        .total-value {
+            background: #d4edda;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #155724;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #dc3545;
+        }
+
+        .refresh-btn {
+            display: block;
+            margin: 20px auto;
+            padding: 12px 30px;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+
+        .last-updated {
+            text-align: center;
+            color: white;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+
+        .section-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            table {
+                font-size: 0.85em;
+            }
+            
+            th, td {
+                padding: 8px 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏏 IPL Contest Scoring</h1>
+        <div class="subtitle">Calculate scores based on playoff predictions and player picks</div>
+        
+        <button class="refresh-btn" onclick="loadAndCalculate()">🔄 Calculate Scores</button>
+        
+        <div class="dashboard">
+            <!-- Playoff Scores -->
+            <div class="card">
+                <div class="card-header playoffs">
+                    🏆 Playoff Teams Prediction
+                </div>
+                <div class="card-body" id="playoffs-container">
+                    <div class="loading">Loading data...</div>
+                </div>
+            </div>
+
+            <!-- Most Runs Scores -->
+            <div class="card">
+                <div class="card-header runs">
+                    🏃 Most Runs Scoring
+                </div>
+                <div class="card-body" id="runs-container">
+                    <div class="loading">Loading data...</div>
+                </div>
+            </div>
+
+            <!-- Most Sixes Scores -->
+            <div class="card">
+                <div class="card-header sixes">
+                    💥 Most Sixes Scoring
+                </div>
+                <div class="card-body" id="sixes-container">
+                    <div class="loading">Loading data...</div>
+                </div>
+            </div>
+
+            <!-- Most Wickets Scores -->
+            <div class="card">
+                <div class="card-header wickets">
+                    🎯 Most Wickets Scoring
+                </div>
+                <div class="card-body" id="wickets-container">
+                    <div class="loading">Loading data...</div>
+                </div>
+            </div>
+
+            <!-- Final Leaderboard -->
+            <div class="card">
+                <div class="card-header scores">
+                    �️ Final Leaderboard
+                </div>
+                <div class="card-body" id="leaderboard-container">
+                    <div class="loading">Loading data...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="last-updated" id="last-updated"></div>
+    </div>
+
+    <script>
+        // Contest Predictions Data
+        const contestData = {
+            playoffs: {
+                'Suresh': ['RCB', 'MI', 'PBKS', 'LSG'],
+                'Ravitej': ['MI', 'RCB', 'CSK', 'DC'],
+                'Ganesh': ['MI', 'PBKS', 'RCB', 'SRH'],
+                'Jagadeesh': ['MI', 'RCB', 'PBKS', 'GT'],
+                'KVR': ['RCB', 'MI', 'CSK', 'PBKS']
+            },
+            mostRuns: {
+                'Suresh': ['Virat Kohli', 'Shubman Gill', 'Yashasvi Jaiswal', 'Shreyas Iyer'],
+                'Ravitej': ['K L Rahul', 'Shubman Gill', 'Yashasvi Jaiswal', 'Sanju Samson'],
+                'Ganesh': ['Shubman Gill', 'Virat Kohli', 'Abhishek Sharma', 'K L Rahul'],
+                'Jagadeesh': ['Virat Kohli', 'Yashasvi Jaiswal', 'Surya Kumar Yadav', 'Shubman Gill'],
+                'KVR': ['Ruturaj Gaikwad', 'K L Rahul', 'Ishan Kishan', 'Sai Sudharsan']
+            },
+            mostSixes: {
+                'Suresh': ['Shreyas Iyer', 'Yashasvi Jaiswal', 'Surya Kumar Yadav', 'Ishan Kishan'],
+                'Ravitej': ['Sanju Samson', 'Abhishek Sharma', 'Ishan Kishan', 'Shimron Hetmyer'],
+                'Ganesh': ['Nicholas Pooran', 'Vaibhav Sooryavanshi', 'Abhishek Sharma', 'Ishan Kishan'],
+                'Jagadeesh': ['Nicholas Pooran', 'Surya Kumar Yadav', 'Tim David', 'Heinrich Klaasen'],
+                'KVR': ['Nicholas Pooran', 'Dewald Brevis', 'Ishan Kishan', 'Shashank Singh']
+            },
+            mostWickets: {
+                'Suresh': ['Yuzvendra Chahal', 'Jasprit Bumrah', 'Varun Chakaravarthy', 'Arshdeep Singh'],
+                'Ravitej': ['Jasprit Bumrah', 'Varun Chakaravarthy', 'Mohammed Siraj', 'Arshdeep Singh'],
+                'Ganesh': ['Jasprit Bumrah', 'Noor Ahmad', 'Varun Chakaravarthy', 'Arshdeep Singh'],
+                'Jagadeesh': ['Jasprit Bumrah', 'Varun Chakaravarthy', 'Yuzvendra Chahal', 'Arshdeep Singh'],
+                'KVR': ['Hardik Pandya', 'Ravindra Jadeja', 'Yuzvendra Chahal', 'Eshan Malinga']
+            }
+        };
+
+        // Actual stats from APIs (will be populated)
+        let apiStats = {
+            runs: {},
+            sixes: {},
+            wickets: {},
+            teams: {}
+        };
+
+        // Callback functions for JSONP
+        function ontoprunsscorers(data) {
+            console.log('Runs data received:', data);
+            if (data.toprunsscorers) {
+                data.toprunsscorers.forEach(player => {
+                    apiStats.runs[player.StrikerName] = parseInt(player.TotalRuns) || 0;
+                });
+            }
+        }
+
+        function onmostsixes(data) {
+            console.log('Sixes data received:', data);
+            if (data.mostsixes) {
+                data.mostsixes.forEach(player => {
+                    apiStats.sixes[player.StrikerName] = parseInt(player.Sixes) || 0;
+                });
+            }
+        }
+
+        function onmostwickets(data) {
+            console.log('Wickets data received:', data);
+            if (data.mostwickets) {
+                data.mostwickets.forEach(player => {
+                    apiStats.wickets[player.BowlerName] = parseInt(player.Wickets) || 0;
+                });
+            }
+        }
+
+        function ongroupstandings(data) {
+            console.log('Teams data received:', data);
+            if (data.points) {
+                data.points.forEach(team => {
+                    apiStats.teams[team.TeamCode] = {
+                        points: parseInt(team.Points) || 0,
+                        order: parseInt(team.OrderNo) || 0
+                    };
+                });
+            }
+        }
+
+        // Load script dynamically
+        function loadScript(url) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = url;
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error(`Failed to load ${url}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        // Scoring Functions
+        function calculatePlayoffScores() {
+            const scores = {};
+            const players = Object.keys(contestData.playoffs);
+
+            players.forEach(player => {
+                const predictions = contestData.playoffs[player];
+                let correctTeams = 0;
+                let totalPoints = 0;
+
+                predictions.forEach((team, index) => {
+                    if (apiStats.teams[team]) {
+                        correctTeams++;
+                        totalPoints += apiStats.teams[team].points;
+                    }
+                });
+
+                scores[player] = {
+                    correctTeams,
+                    totalPoints,
+                    predictions
+                };
+            });
+
+            return scores;
+        }
+
+        function calculatePlayerScores(category) {
+            const scores = {};
+            const players = Object.keys(contestData[category]);
+            const statMap = category === 'mostRuns' ? apiStats.runs : 
+                           category === 'mostSixes' ? apiStats.sixes : 
+                           apiStats.wickets;
+
+            players.forEach(player => {
+                const picks = contestData[category][player];
+                const playerStats = picks.map(pick => statMap[pick] || 0);
+                
+                // Sort stats in descending order to get top 3
+                const sortedStats = [...playerStats].sort((a, b) => b - a);
+                const top3Total = sortedStats.slice(0, 3).reduce((a, b) => a + b, 0);
+                const allTotal = playerStats.reduce((a, b) => a + b, 0);
+
+                scores[player] = {
+                    picks,
+                    stats: playerStats,
+                    top3Total,
+                    allTotal
+                };
+            });
+
+            return scores;
+        }
+
+        function renderPlayoffScores() {
+            const container = document.getElementById('playoffs-container');
+            const scores = calculatePlayoffScores();
+
+            // Sort by correct teams, then by total points
+            const sorted = Object.entries(scores)
+                .map(([player, data]) => ({
+                    player,
+                    ...data,
+                    score: data.correctTeams * 100 + data.totalPoints
+                }))
+                .sort((a, b) => b.score - a.score)
+                .map((entry, index) => ({ rank: index + 1, ...entry }));
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Teams with Points</th>
+                            <th>Total Points</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sorted.forEach(entry => {
+                const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '';
+                const bgColor = entry.rank === 1 ? '#fff3cd' : entry.rank === 2 ? '#e7f3ff' : entry.rank === 3 ? '#f0e6ff' : '';
+                const style = bgColor ? `style="background-color: ${bgColor};"` : '';
+
+                let teamsHtml = '';
+                entry.predictions.forEach(t => {
+                    const teamData = apiStats.teams[t];
+                    const status = teamData ? '✓' : '✗';
+                    const points = teamData ? teamData.points : 0;
+                    teamsHtml += `<div><strong>${t}</strong> ${status} (${points} pts)</div>`;
+                });
+
+                html += `
+                    <tr ${style}>
+                        <td class="rank"><strong>${medal} ${entry.rank}</strong></td>
+                        <td class="player-name"><strong>${entry.player}</strong></td>
+                        <td>${teamsHtml}</td>
+                        <td class="stat-value"><strong>${entry.totalPoints}</strong></td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function renderCategoryScores(category, containerId) {
+            const container = document.getElementById(containerId);
+            const scores = calculatePlayerScores(category);
+
+            // Sort by top 3 total, then by all 4 total
+            const sorted = Object.entries(scores)
+                .map(([player, data]) => ({
+                    player,
+                    ...data,
+                    score: data.top3Total * 1000 + data.allTotal
+                }))
+                .sort((a, b) => b.score - a.score)
+                .map((entry, index) => ({ rank: index + 1, ...entry }));
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Picks with Scores</th>
+                            <th>Top 3 Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sorted.forEach(entry => {
+                const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '';
+                const bgColor = entry.rank === 1 ? '#fff3cd' : entry.rank === 2 ? '#e7f3ff' : entry.rank === 3 ? '#f0e6ff' : '';
+                const style = bgColor ? `style="background-color: ${bgColor};"` : '';
+
+                // Create array of picks with their stats and sort by stats descending
+                const picksWithStats = entry.picks.map((pickName, idx) => ({
+                    name: pickName,
+                    stat: entry.stats[idx]
+                })).sort((a, b) => b.stat - a.stat);
+
+                let pickHtml = '';
+                picksWithStats.forEach((pick, idx) => {
+                    const className = idx < 3 ? 'top-3-value' : 'pick-value';
+                    pickHtml += `<div class="${className}"><strong>${pick.stat}</strong> - ${pick.name}</div>`;
+                });
+
+                html += `
+                    <tr ${style}>
+                        <td class="rank"><strong>${medal} ${entry.rank}</strong></td>
+                        <td class="player-name"><strong>${entry.player}</strong></td>
+                        <td>${pickHtml}</td>
+                        <td class="stat-value"><span class="top-3-value"><strong>${entry.top3Total}</strong></span></td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Points system: 1st=5, 2nd=4, 3rd=3, 4th=2, 5th=1
+        const POSITION_POINTS = {
+            1: 5,
+            2: 4,
+            3: 3,
+            4: 2,
+            5: 1
+        };
+
+        function getRankedPlayers(scores) {
+            return Object.entries(scores)
+                .map(([player, data]) => ({
+                    player,
+                    ...data,
+                    score: data.top3Total * 1000 + data.allTotal
+                }))
+                .sort((a, b) => b.score - a.score)
+                .map((entry, index) => ({ rank: index + 1, ...entry }));
+        }
+
+        function getRankedPlayoffPlayers(scores) {
+            return Object.entries(scores)
+                .map(([player, data]) => ({
+                    player,
+                    ...data,
+                    score: data.correctTeams * 100 + data.totalPoints
+                }))
+                .sort((a, b) => b.score - a.score)
+                .map((entry, index) => ({ rank: index + 1, ...entry }));
+        }
+
+        function renderLeaderboard() {
+            const container = document.getElementById('leaderboard-container');
+            const playoffScores = calculatePlayoffScores();
+            const runsScores = calculatePlayerScores('mostRuns');
+            const sixesScores = calculatePlayerScores('mostSixes');
+            const wicketsScores = calculatePlayerScores('mostWickets');
+
+            // Get ranked players for each contest
+            const playoffRanked = getRankedPlayoffPlayers(playoffScores);
+            const runsRanked = getRankedPlayers(runsScores);
+            const sixesRanked = getRankedPlayers(sixesScores);
+            const wicketsRanked = getRankedPlayers(wicketsScores);
+
+            // Create points mapping for each contest
+            const pointsMap = {};
+            const players = Object.keys(contestData.playoffs);
+            
+            players.forEach(player => {
+                pointsMap[player] = {
+                    playoff: 0,
+                    runs: 0,
+                    sixes: 0,
+                    wickets: 0
+                };
+            });
+
+            // Assign points based on ranking
+            playoffRanked.forEach(entry => {
+                pointsMap[entry.player].playoff = POSITION_POINTS[entry.rank] || 0;
+            });
+            runsRanked.forEach(entry => {
+                pointsMap[entry.player].runs = POSITION_POINTS[entry.rank] || 0;
+            });
+            sixesRanked.forEach(entry => {
+                pointsMap[entry.player].sixes = POSITION_POINTS[entry.rank] || 0;
+            });
+            wicketsRanked.forEach(entry => {
+                pointsMap[entry.player].wickets = POSITION_POINTS[entry.rank] || 0;
+            });
+
+            // Calculate total points
+            const leaderboard = {};
+            players.forEach(player => {
+                const totalPoints = pointsMap[player].playoff + 
+                                   pointsMap[player].runs + 
+                                   pointsMap[player].sixes + 
+                                   pointsMap[player].wickets;
+                leaderboard[player] = {
+                    ...pointsMap[player],
+                    total: totalPoints
+                };
+            });
+
+            // Sort final leaderboard
+            const sorted = Object.entries(leaderboard)
+                .sort((a, b) => b[1].total - a[1].total)
+                .map(([player, points], index) => ({ rank: index + 1, player, ...points }));
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Player</th>
+                            <th>Playoffs</th>
+                            <th>Runs</th>
+                            <th>Sixes</th>
+                            <th>Wickets</th>
+                            <th>Total Points</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sorted.forEach(entry => {
+                const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '';
+                const bgColor = entry.rank === 1 ? '#fff3cd' : entry.rank === 2 ? '#e7f3ff' : entry.rank === 3 ? '#f0e6ff' : '';
+                const style = bgColor ? `style="background-color: ${bgColor};"` : '';
+                
+                html += `
+                    <tr ${style}>
+                        <td class="rank"><strong>${medal} ${entry.rank}</strong></td>
+                        <td class="player-name"><strong>${entry.player}</strong></td>
+                        <td class="stat-value"><strong>${entry.playoff}</strong></td>
+                        <td class="stat-value"><strong>${entry.runs}</strong></td>
+                        <td class="stat-value"><strong>${entry.sixes}</strong></td>
+                        <td class="stat-value"><strong>${entry.wickets}</strong></td>
+                        <td><span class="points-badge">${entry.total}</span></td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Load all stats and calculate scores
+        async function loadAndCalculate() {
+            const timestamp = new Date().getTime();
+            
+            try {
+                // Remove old scripts
+                document.querySelectorAll('script[src*="ipl-stats-sports-mechanic"]').forEach(s => s.remove());
+                
+                // Load all scripts
+                await Promise.all([
+                    loadScript(`https://ipl-stats-sports-mechanic.s3.ap-south-1.amazonaws.com/ipl/feeds/stats/284-toprunsscorers.js?callback=ontoprunsscorers&t=${timestamp}`),
+                    loadScript(`https://ipl-stats-sports-mechanic.s3.ap-south-1.amazonaws.com/ipl/feeds/stats/284-mostsixes.js?callback=onmostsixes&t=${timestamp}`),
+                    loadScript(`https://ipl-stats-sports-mechanic.s3.ap-south-1.amazonaws.com/ipl/feeds/stats/284-mostwickets.js?callback=onmostwickets&t=${timestamp}`),
+                    loadScript(`https://ipl-stats-sports-mechanic.s3.ap-south-1.amazonaws.com/ipl/feeds/stats/284-groupstandings.js?ongroupstandings=ongroupstandings&t=${timestamp}`)
+                ]);
+
+                // Wait a moment for callbacks to execute
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Render all scores
+                renderPlayoffScores();
+                renderCategoryScores('mostRuns', 'runs-container');
+                renderCategoryScores('mostSixes', 'sixes-container');
+                renderCategoryScores('mostWickets', 'wickets-container');
+                renderLeaderboard();
+
+                // Update last updated time
+                const now = new Date();
+                document.getElementById('last-updated').textContent = 
+                    `Last updated: ${now.toLocaleString()}`;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.querySelectorAll('.card-body').forEach(container => {
+                    if (container.querySelector('.loading')) {
+                        container.innerHTML = '<div class="error">Failed to load stats. Please try again.</div>';
+                    }
+                });
+            }
+        }
+
+        // Load stats on page load
+        window.addEventListener('DOMContentLoaded', loadAndCalculate);
+    </script>
+</body>
+</html>
