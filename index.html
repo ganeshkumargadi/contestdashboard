@@ -519,16 +519,7 @@
         function renderCategoryScores(category, containerId) {
             const container = document.getElementById(containerId);
             const scores = calculatePlayerScores(category);
-
-            // Sort by top 3 total, then by all 4 total
-            const sorted = Object.entries(scores)
-                .map(([player, data]) => ({
-                    player,
-                    ...data,
-                    score: data.top3Total * 1000 + data.allTotal
-                }))
-                .sort((a, b) => b.score - a.score)
-                .map((entry, index) => ({ rank: index + 1, ...entry }));
+            const sorted = getRankedPlayers(scores);
 
             let html = `
                 <table>
@@ -584,14 +575,38 @@
         };
 
         function getRankedPlayers(scores) {
-            return Object.entries(scores)
-                .map(([player, data]) => ({
-                    player,
-                    ...data,
-                    score: data.top3Total * 1000 + data.allTotal
-                }))
-                .sort((a, b) => b.score - a.score)
-                .map((entry, index) => ({ rank: index + 1, ...entry }));
+            const sortedEntries = Object.entries(scores)
+                .sort((a, b) => {
+                    // First by top3Total descending
+                    if (a[1].top3Total !== b[1].top3Total) {
+                        return b[1].top3Total - a[1].top3Total;
+                    }
+                    // Then by allTotal descending
+                    return b[1].allTotal - a[1].allTotal;
+                });
+
+            // Assign ranks with ties
+            const ranked = [];
+            let currentRank = 1;
+            for (let i = 0; i < sortedEntries.length; i++) {
+                const [player, data] = sortedEntries[i];
+                let rank = currentRank;
+
+                // Check if tied with next player
+                if (i < sortedEntries.length - 1) {
+                    const nextData = sortedEntries[i + 1][1];
+                    const isTie = data.top3Total === nextData.top3Total && data.allTotal === nextData.allTotal;
+                    if (!isTie) {
+                        currentRank = i + 2; // Next rank after this group
+                    }
+                } else {
+                    currentRank = i + 2;
+                }
+
+                ranked.push({ rank, player, ...data });
+            }
+
+            return ranked;
         }
 
         function getRankedPlayoffPlayers(scores) {
@@ -652,16 +667,69 @@
                                    pointsMap[player].runs + 
                                    pointsMap[player].sixes + 
                                    pointsMap[player].wickets;
+                
+                // Count occurrences of each position score
+                const positionCounts = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0};
+                [pointsMap[player].playoff, pointsMap[player].runs, pointsMap[player].sixes, pointsMap[player].wickets].forEach(points => {
+                    if (positionCounts.hasOwnProperty(points)) {
+                        positionCounts[points]++;
+                    }
+                });
+                
                 leaderboard[player] = {
                     ...pointsMap[player],
-                    total: totalPoints
+                    total: totalPoints,
+                    positionCounts
                 };
             });
 
-            // Sort final leaderboard
-            const sorted = Object.entries(leaderboard)
-                .sort((a, b) => b[1].total - a[1].total)
-                .map(([player, points], index) => ({ rank: index + 1, player, ...points }));
+            // Sort final leaderboard with tie-breaking
+            const sortedEntries = Object.entries(leaderboard)
+                .sort((a, b) => {
+                    // First by total points descending
+                    if (a[1].total !== b[1].total) {
+                        return b[1].total - a[1].total;
+                    }
+                    // Then by count of 5's descending
+                    if (a[1].positionCounts[5] !== b[1].positionCounts[5]) {
+                        return b[1].positionCounts[5] - a[1].positionCounts[5];
+                    }
+                    // Then by count of 4's descending
+                    if (a[1].positionCounts[4] !== b[1].positionCounts[4]) {
+                        return b[1].positionCounts[4] - a[1].positionCounts[4];
+                    }
+                    // Then by count of 3's descending
+                    if (a[1].positionCounts[3] !== b[1].positionCounts[3]) {
+                        return b[1].positionCounts[3] - a[1].positionCounts[3];
+                    }
+                    // Then by count of 2's descending
+                    return b[1].positionCounts[2] - a[1].positionCounts[2];
+                });
+
+            // Assign ranks with ties
+            const sorted = [];
+            let currentRank = 1;
+            for (let i = 0; i < sortedEntries.length; i++) {
+                const [player, points] = sortedEntries[i];
+                let rank = currentRank;
+                
+                // Check if tied with next player
+                if (i < sortedEntries.length - 1) {
+                    const nextPoints = sortedEntries[i + 1][1];
+                    const isTie = points.total === nextPoints.total &&
+                                 points.positionCounts[5] === nextPoints.positionCounts[5] &&
+                                 points.positionCounts[4] === nextPoints.positionCounts[4] &&
+                                 points.positionCounts[3] === nextPoints.positionCounts[3] &&
+                                 points.positionCounts[2] === nextPoints.positionCounts[2];
+                    if (!isTie) {
+                        currentRank = i + 2; // Next rank after this group
+                    }
+                } else {
+                    currentRank = i + 2;
+                }
+                
+                sorted.push({ rank, player, ...points });
+            }
 
             let html = `
                 <table>
