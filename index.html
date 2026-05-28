@@ -417,17 +417,23 @@
                 const predictions = contestData.playoffs[player];
                 let correctTeams = 0;
                 let totalPoints = 0;
+                let powerPoints = 0;
 
                 predictions.forEach((team, index) => {
                     if (apiStats.teams[team]) {
                         correctTeams++;
                         totalPoints += apiStats.teams[team].points;
+                        
+                        // Calculate power points based on position
+                        const multiplier = index <= 1 ? POWER_POINT_MULTIPLIERS[index] : POWER_POINT_MULTIPLIERS[2];
+                        powerPoints += apiStats.teams[team].points * multiplier;
                     }
                 });
 
                 scores[player] = {
                     correctTeams,
                     totalPoints,
+                    powerPoints,
                     predictions
                 };
             });
@@ -466,14 +472,14 @@
             const container = document.getElementById('playoffs-container');
             const scores = calculatePlayoffScores();
 
-            // Sort by correct teams, then by total points
+            // Sort by correct teams, then by total points, then by power points
             const sorted = Object.entries(scores)
                 .map(([player, data]) => ({
                     player,
                     ...data,
                     score: data.correctTeams * 100 + data.totalPoints
                 }))
-                .sort((a, b) => b.score - a.score)
+                .sort(compareScoresWithPowerPoints)
                 .map((entry, index) => ({ rank: index + 1, ...entry }));
 
             let html = `
@@ -490,9 +496,7 @@
             `;
 
             sorted.forEach(entry => {
-                const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '';
-                const bgColor = entry.rank === 1 ? '#fff3cd' : entry.rank === 2 ? '#e7f3ff' : entry.rank === 3 ? '#f0e6ff' : '';
-                const style = bgColor ? `style="background-color: ${bgColor};"` : '';
+                const { medal, style } = getMedalAndColor(entry.rank);
 
                 let teamsHtml = '';
                 entry.predictions.forEach(t => {
@@ -535,9 +539,7 @@
             `;
 
             sorted.forEach(entry => {
-                const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '';
-                const bgColor = entry.rank === 1 ? '#fff3cd' : entry.rank === 2 ? '#e7f3ff' : entry.rank === 3 ? '#f0e6ff' : '';
-                const style = bgColor ? `style="background-color: ${bgColor};"` : '';
+                const { medal, style } = getMedalAndColor(entry.rank);
 
                 // Create array of picks with their stats and sort by stats descending
                 const picksWithStats = entry.picks.map((pickName, idx) => ({
@@ -574,6 +576,32 @@
             5: 1
         };
 
+        // Power points multipliers for playoff teams
+        const POWER_POINT_MULTIPLIERS = {
+            0: 1000,  // 1st team
+            1: 100,   // 2nd team
+            2: 10     // 3rd+ teams
+        };
+
+        // Utility function to get medal and background color
+        function getMedalAndColor(rank) {
+            const medals = { 1: '🥇', 2: '🥈', 3: '🥉' };
+            const colors = { 1: '#fff3cd', 2: '#e7f3ff', 3: '#f0e6ff' };
+            return {
+                medal: medals[rank] || '',
+                bgColor: colors[rank] || '',
+                style: colors[rank] ? `style="background-color: ${colors[rank]};"` : ''
+            };
+        }
+
+        // Utility function to compare scores with tie-breaking by power points
+        function compareScoresWithPowerPoints(a, b) {
+            if (b.score !== a.score) {
+                return b.score - a.score;
+            }
+            return b.powerPoints - a.powerPoints;
+        }
+
         function getRankedPlayers(scores) {
             const sortedEntries = Object.entries(scores)
                 .sort((a, b) => {
@@ -585,25 +613,33 @@
                     return b[1].allTotal - a[1].allTotal;
                 });
 
-            // Assign ranks with ties
+            // Assign ranks with average rank for tie-breaking in leaderboard
             const ranked = [];
-            let currentRank = 1;
-            for (let i = 0; i < sortedEntries.length; i++) {
+            let i = 0;
+            while (i < sortedEntries.length) {
                 const [player, data] = sortedEntries[i];
-                let rank = currentRank;
-
-                // Check if tied with next player
-                if (i < sortedEntries.length - 1) {
-                    const nextData = sortedEntries[i + 1][1];
+                let tieGroupEnd = i;
+                
+                // Find all players tied with current player
+                while (tieGroupEnd < sortedEntries.length - 1) {
+                    const nextData = sortedEntries[tieGroupEnd + 1][1];
                     const isTie = data.top3Total === nextData.top3Total && data.allTotal === nextData.allTotal;
-                    if (!isTie) {
-                        currentRank = i + 2; // Next rank after this group
-                    }
-                } else {
-                    currentRank = i + 2;
+                    if (!isTie) break;
+                    tieGroupEnd++;
                 }
-
-                ranked.push({ rank, player, ...data });
+                
+                // Display rank is the first position in the group
+                const displayRank = i + 1;
+                // Average rank is used for points calculation in leaderboard
+                const averageRank = (i + 1 + tieGroupEnd + 1) / 2;
+                
+                // Add all tied players with both display rank and average rank
+                for (let j = i; j <= tieGroupEnd; j++) {
+                    const [tiedPlayer, tiedData] = sortedEntries[j];
+                    ranked.push({ rank: displayRank, averageRank: averageRank, player: tiedPlayer, ...tiedData });
+                }
+                
+                i = tieGroupEnd + 1;
             }
 
             return ranked;
@@ -616,7 +652,7 @@
                     ...data,
                     score: data.correctTeams * 100 + data.totalPoints
                 }))
-                .sort((a, b) => b.score - a.score)
+                .sort(compareScoresWithPowerPoints)
                 .map((entry, index) => ({ rank: index + 1, ...entry }));
         }
 
@@ -646,18 +682,33 @@
                 };
             });
 
-            // Assign points based on ranking
+            // Helper function to get points from rank (handles average ranks)
+            const getPointsFromRank = (rank) => {
+                const floorRank = Math.floor(rank);
+                const ceilRank = Math.ceil(rank);
+                
+                if (floorRank === ceilRank) {
+                    return POSITION_POINTS[floorRank] || 0;
+                }
+                
+                // For average ranks, interpolate between two position points
+                const floorPoints = POSITION_POINTS[floorRank] || 0;
+                const ceilPoints = POSITION_POINTS[ceilRank] || 0;
+                return (floorPoints + ceilPoints) / 2;
+            };
+
+            // Assign points based on average rank for tie-breaking
             playoffRanked.forEach(entry => {
-                pointsMap[entry.player].playoff = POSITION_POINTS[entry.rank] || 0;
+                pointsMap[entry.player].playoff = getPointsFromRank(entry.averageRank || entry.rank);
             });
             runsRanked.forEach(entry => {
-                pointsMap[entry.player].runs = POSITION_POINTS[entry.rank] || 0;
+                pointsMap[entry.player].runs = getPointsFromRank(entry.averageRank || entry.rank);
             });
             sixesRanked.forEach(entry => {
-                pointsMap[entry.player].sixes = POSITION_POINTS[entry.rank] || 0;
+                pointsMap[entry.player].sixes = getPointsFromRank(entry.averageRank || entry.rank);
             });
             wicketsRanked.forEach(entry => {
-                pointsMap[entry.player].wickets = POSITION_POINTS[entry.rank] || 0;
+                pointsMap[entry.player].wickets = getPointsFromRank(entry.averageRank || entry.rank);
             });
 
             // Calculate total points
@@ -706,29 +757,36 @@
                     return b[1].positionCounts[2] - a[1].positionCounts[2];
                 });
 
-            // Assign ranks with ties
+            // Assign average ranks for ties
             const sorted = [];
-            let currentRank = 1;
-            for (let i = 0; i < sortedEntries.length; i++) {
+            let i = 0;
+            while (i < sortedEntries.length) {
                 const [player, points] = sortedEntries[i];
-                let rank = currentRank;
+                let tieGroupEnd = i;
                 
-                // Check if tied with next player
-                if (i < sortedEntries.length - 1) {
-                    const nextPoints = sortedEntries[i + 1][1];
+                // Find all players tied with current player
+                while (tieGroupEnd < sortedEntries.length - 1) {
+                    const nextPoints = sortedEntries[tieGroupEnd + 1][1];
                     const isTie = points.total === nextPoints.total &&
                                  points.positionCounts[5] === nextPoints.positionCounts[5] &&
                                  points.positionCounts[4] === nextPoints.positionCounts[4] &&
                                  points.positionCounts[3] === nextPoints.positionCounts[3] &&
                                  points.positionCounts[2] === nextPoints.positionCounts[2];
-                    if (!isTie) {
-                        currentRank = i + 2; // Next rank after this group
-                    }
-                } else {
-                    currentRank = i + 2;
+                    if (!isTie) break;
+                    tieGroupEnd++;
                 }
                 
-                sorted.push({ rank, player, ...points });
+                // Calculate average rank for the tie group
+                const tieGroupSize = tieGroupEnd - i + 1;
+                const averageRank = (i + 1 + tieGroupEnd + 1) / 2;
+                
+                // Add all tied players with average rank
+                for (let j = i; j <= tieGroupEnd; j++) {
+                    const [tiedPlayer, tiedPoints] = sortedEntries[j];
+                    sorted.push({ rank: averageRank, player: tiedPlayer, ...tiedPoints });
+                }
+                
+                i = tieGroupEnd + 1;
             }
 
             let html = `
@@ -748,9 +806,7 @@
             `;
 
             sorted.forEach(entry => {
-                const medal = entry.rank === 1 ? '🥇' : entry.rank === 2 ? '🥈' : entry.rank === 3 ? '🥉' : '';
-                const bgColor = entry.rank === 1 ? '#fff3cd' : entry.rank === 2 ? '#e7f3ff' : entry.rank === 3 ? '#f0e6ff' : '';
-                const style = bgColor ? `style="background-color: ${bgColor};"` : '';
+                const { medal, style } = getMedalAndColor(entry.rank);
                 
                 html += `
                     <tr ${style}>
